@@ -17,12 +17,14 @@ from docx.shared import RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 app = Flask(__name__)
-CORS(app)
+# FIX: Allow CORS for all domains so Vercel can access it!
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 import os
 
 # Change your Groq client line to this:
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+
 @app.route('/')
 def home():
     return "Backend is running!"
@@ -188,7 +190,7 @@ def generate_pdf(data, filename="improved_resume.pdf"):
     doc.build(elements)
     return filename
 
-# 📄 Generate Clean DOCX (NEW FUNCTION)
+# 📄 Generate Clean DOCX (NEW FUNCTION WITH SAFE FALLBACK)
 def generate_docx(data, filename="improved_resume.docx"):
     doc = docx.Document()
     
@@ -224,12 +226,15 @@ def generate_docx(data, filename="improved_resume.docx"):
                     p.add_run(f"  |  {item.get('date', '')}")
                 
                 if item.get('subtitle'):
-                    doc.add_paragraph(item.get('subtitle', ''), style='Subtitle')
+                    # FIX: SAFE FALLBACK manual italic
+                    p_sub = doc.add_paragraph()
+                    p_sub.add_run(item.get('subtitle', '')).italic = True
                     
                 if item.get('details') and isinstance(item['details'], list):
                     for detail in item['details']:
                         if str(detail).strip():
-                            doc.add_paragraph(str(detail), style='List Bullet')
+                            # FIX: SAFE FALLBACK manual bullet
+                            doc.add_paragraph(f"•  {str(detail)}")
                             
     # 4. Experience, Education, Projects
     add_list_section("Experience", "experience")
@@ -241,7 +246,7 @@ def generate_docx(data, filename="improved_resume.docx"):
         add_section_header("Certifications")
         for cert in data['certifications']:
             if str(cert).strip():
-                doc.add_paragraph(str(cert), style='List Bullet')
+                doc.add_paragraph(f"•  {str(cert)}")
                 
     doc.save(filename)
     return filename
@@ -292,6 +297,8 @@ def upload():
 # 📥 Download API
 @app.route('/download/<filename>')
 def download_file(filename):
+    if not os.path.exists(filename):
+        return "File not found! Please click 'Upload & Enhance' to generate this document again.", 404
     return send_file(filename, as_attachment=True)
 
 if __name__ == '__main__':
