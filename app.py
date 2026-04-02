@@ -52,9 +52,13 @@ def enhance_with_ai(raw_text):
     try:
         prompt = f"""
         You are an expert ATS-friendly resume writer. Extract and greatly enhance the following resume text.
-        Improve the language, use strong action verbs for bullet points, fix grammar, and make it highly professional.
         
-        You MUST return ONLY a valid JSON object. Do not include any explanations, markdown formatting, or markdown code blocks (no ```json).
+        CRITICAL RULES:
+        1. DO NOT summarize, truncate, or delete any information.
+        2. You MUST keep EVERY single job, EVERY project, EVERY certification, and EVERY bullet point from the original text.
+        3. Your only job is to improve the language, fix grammar, and use strong action verbs. Do NOT shorten the resume.
+        
+        You MUST return ONLY a valid JSON object. Do not include any explanations or markdown formatting.
         Use this EXACT JSON structure:
         {{
           "name": "Full Name",
@@ -95,12 +99,12 @@ def enhance_with_ai(raw_text):
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3 # Lower temperature for more consistent formatting
+            temperature=0.2 # Lower temperature makes the AI more obedient to rules
         )
 
         response_text = response.choices[0].message.content.strip()
+
         
-        # Clean up any potential markdown formatting the AI might add by mistake
         if response_text.startswith("```json"):
             response_text = response_text[7:]
         if response_text.startswith("```"):
@@ -113,7 +117,7 @@ def enhance_with_ai(raw_text):
     except Exception as e:
         print("AI ERROR:", str(e))
         return {"error": "AI failed to process the resume properly."}
-
+    
 # 📄 Generate Clean PDF with Strict Formatting
 # 📄 Generate Clean, 1-Page ATS PDF with Strict Formatting
 # 📄 Generate Clean, 1-Page ATS PDF
