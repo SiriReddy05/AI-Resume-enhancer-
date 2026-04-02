@@ -99,12 +99,14 @@ def enhance_with_ai(raw_text):
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.2 # Lower temperature makes the AI more obedient to rules
+            temperature=0.2,
+            max_tokens=3000
+              # Lower temperature makes the AI more obedient to rules
         )
 
         response_text = response.choices[0].message.content.strip()
 
-        
+
         if response_text.startswith("```json"):
             response_text = response_text[7:]
         if response_text.startswith("```"):
