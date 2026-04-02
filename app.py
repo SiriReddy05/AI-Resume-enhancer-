@@ -116,76 +116,68 @@ def enhance_with_ai(raw_text):
 
 # 📄 Generate Clean PDF with Strict Formatting
 # 📄 Generate Clean, 1-Page ATS PDF with Strict Formatting
+# 📄 Generate Clean, 1-Page ATS PDF
 def generate_pdf(data, filename="improved_resume.pdf"):
-    # FIX: Drastically reduced margins to fit more on one page
-    doc = SimpleDocTemplate(filename, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=25, bottomMargin=25)
+    # FIX: Shrink margins to 25pt to force everything onto one page
+    doc = SimpleDocTemplate(filename, pagesize=letter, rightMargin=25, leftMargin=25, topMargin=20, bottomMargin=20)
     styles = getSampleStyleSheet()
     
-    # FIX: Tighter fonts and spacing
-    title_style = ParagraphStyle(name='TitleStyle', parent=styles['Heading1'], alignment=TA_CENTER, fontSize=16, spaceAfter=2)
-    contact_style = ParagraphStyle(name='ContactStyle', parent=styles['Normal'], alignment=TA_CENTER, fontSize=9, textColor=colors.dimgrey, spaceAfter=8)
-    section_heading = ParagraphStyle(name='SectionHeading', parent=styles['Heading2'], fontSize=11, spaceBefore=8, spaceAfter=2, textTransform='uppercase')
-    item_title = ParagraphStyle(name='ItemTitle', parent=styles['Heading3'], fontSize=10, spaceBefore=4, spaceAfter=1)
-    item_subtitle = ParagraphStyle(name='ItemSubtitle', parent=styles['Normal'], fontSize=9, fontName='Helvetica-Oblique', textColor=colors.dimgrey, spaceAfter=2)
-    normal_text = ParagraphStyle(name='NormalText', parent=styles['Normal'], fontSize=9, spaceAfter=4, leading=11)
-    bullet_text = ParagraphStyle(name='BulletText', parent=styles['Normal'], fontSize=9, spaceAfter=1, leading=11)
+    # FIX: Tighter font sizes for maximum content density
+    title_style = ParagraphStyle(name='TitleStyle', alignment=TA_CENTER, fontSize=15, leading=18, spaceAfter=2, fontName='Helvetica-Bold')
+    contact_style = ParagraphStyle(name='ContactStyle', alignment=TA_CENTER, fontSize=9, spaceAfter=8)
+    section_heading = ParagraphStyle(name='SectionHeading', fontSize=10, spaceBefore=6, spaceAfter=2, textTransform='uppercase', fontName='Helvetica-Bold')
+    item_title = ParagraphStyle(name='ItemTitle', fontSize=9, spaceBefore=3, spaceAfter=0, fontName='Helvetica-Bold')
+    normal_text = ParagraphStyle(name='NormalText', fontSize=9, leading=10, spaceAfter=2)
+    bullet_text = ParagraphStyle(name='BulletText', fontSize=9, leading=10, leftIndent=10, firstLineIndent=0, spaceAfter=1)
 
     elements = []
 
     # 1. Header (Name & Contact)
-    elements.append(Paragraph(f"<b>{data.get('name', 'Your Name')}</b>", title_style))
-    elements.append(Paragraph(data.get('contact', 'Email | Phone'), contact_style))
+    elements.append(Paragraph(data.get('name', '').upper(), title_style))
+    elements.append(Paragraph(data.get('contact', ''), contact_style))
     
-    def add_section_header(title):
-        elements.append(Paragraph(f"<b>{title}</b>", section_heading))
-        elements.append(HRFlowable(width="100%", thickness=1, color=colors.black, spaceBefore=1, spaceAfter=4))
+    def add_line():
+        elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.black, spaceBefore=0, spaceAfter=2))
 
     # 2. Professional Summary
     if data.get('summary'):
-        add_section_header("Professional Summary")
+        elements.append(Paragraph("<b>PROFESSIONAL SUMMARY</b>", section_heading))
+        add_line()
         elements.append(Paragraph(data['summary'], normal_text))
 
     # 3. Skills
-    if data.get('skills') and len(data['skills']) > 0:
-        add_section_header("Skills")
-        skills_text = " • ".join(data['skills'])
-        elements.append(Paragraph(skills_text, normal_text))
+    if data.get('skills'):
+        elements.append(Paragraph("<b>TECHNICAL SKILLS</b>", section_heading))
+        add_line()
+        elements.append(Paragraph(" • ".join(data['skills']), normal_text))
 
-    # Helper for repetitive sections
-    def add_list_section(title, key):
+    # 4. Experience & Projects (Combined logic for speed)
+    for section_title, key in [("EXPERIENCE", "experience"), ("PROJECTS", "projects")]:
         items = data.get(key, [])
-        if items and len(items) > 0:
-            add_section_header(title)
+        if items:
+            elements.append(Paragraph(f"<b>{section_title}</b>", section_heading))
+            add_line()
             for item in items:
-                title_str = f"<b>{item.get('title', '')}</b>"
+                header = f"<b>{item.get('title', '')}</b>"
                 if item.get('date'):
-                    title_str += f" <font color='grey'>| {item.get('date', '')}</font>"
-                elements.append(Paragraph(title_str, item_title))
+                    header += f" <font color='grey'>| {item.get('date', '')}</font>"
+                elements.append(Paragraph(header, item_title))
                 
                 if item.get('subtitle'):
-                    elements.append(Paragraph(item.get('subtitle', ''), item_subtitle))
+                    elements.append(Paragraph(f"<i>{item['subtitle']}</i>", normal_text))
                 
-                # Bullet points
-                if item.get('details') and isinstance(item['details'], list):
-                    bullet_items = []
-                    for detail in item['details']:
-                        if str(detail).strip():
-                            bullet_items.append(ListItem(Paragraph(str(detail), bullet_text), leftIndent=10, bulletOffsetY=-1))
-                    if bullet_items:
-                        elements.append(ListFlowable(bullet_items, bulletType='bullet', start='bulletchar', bulletFontName='Helvetica'))
-                        elements.append(Spacer(1, 2))
-    # 4. Experience, Education, Projects
-    add_list_section("Experience", "experience")
-    add_list_section("Projects", "projects") # Moved projects up for better flow
-    add_list_section("Education", "education")
-    # 5. Certifications
-    if data.get('certifications') and len(data['certifications']) > 0:
-        add_section_header("Certifications")
-        cert_items = [ListItem(Paragraph(str(cert), bullet_text), leftIndent=10) for cert in data['certifications'] if str(cert).strip()]
-        if cert_items:
-             elements.append(ListFlowable(cert_items, bulletType='bullet', start='bulletchar'))
+                for detail in item.get('details', []):
+                    if detail.strip():
+                        elements.append(Paragraph(f"• {detail}", bullet_text))
 
-    # Build PDF
+    # 5. Education
+    if data.get('education'):
+        elements.append(Paragraph("<b>EDUCATION</b>", section_heading))
+        add_line()
+        for edu in data['education']:
+            elements.append(Paragraph(f"<b>{edu.get('title', '')}</b> | {edu.get('date', '')}", item_title))
+            elements.append(Paragraph(edu.get('subtitle', ''), normal_text))
+
     doc.build(elements)
     return filename
 
