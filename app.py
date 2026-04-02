@@ -46,16 +46,17 @@ def extract_docx(file_path):
     return text
 
 # 🧠 AI Enhancement (Strict JSON Structured Output)
+# 🧠 AI Enhancement (Strict JSON Structured Output)
 def enhance_with_ai(raw_text):
     try:
-        # Move rules to a SYSTEM prompt so the AI prioritizes them above all else
         system_prompt = """
         You are an expert ATS-friendly resume writer and a meticulous data extractor.
         
         CRITICAL RULES:
         1. YOU ARE FORBIDDEN FROM DELETING OR SUMMARIZING INFORMATION.
         2. You MUST retain EVERY single job experience, EVERY project, EVERY certification, EVERY achievement, and EVERY bullet point.
-        3. Do not shorten the resume. Improve grammar and use strong action verbs.
+        3. EXPLICIT EXTRACTION: You must actively search for sections titled "Scholastic Achievements", "Position of Responsibility", "Leadership", or similar. Extract EVERY SINGLE bullet point under these headings and place them directly into the "achievements" array. Do not leave them behind.
+        4. Do not shorten the resume. Improve grammar and use strong action verbs.
         
         You MUST return ONLY a valid JSON object. Do not include any explanations, markdown formatting, or markdown code blocks (no ```json).
         Use this EXACT JSON structure:
@@ -94,18 +95,18 @@ def enhance_with_ai(raw_text):
         """
 
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile", # UPGRADED TO THE 70-BILLION PARAMETER MODEL
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"RAW RESUME TEXT:\n{raw_text}"}
             ],
-            temperature=0.1, # Extremely low temperature so it doesn't get "creative" and skip things
-            max_tokens=6000  # Doubled the token limit to ensure it never cuts off
+            temperature=0.1,
+            max_tokens=6000
         )
 
         response_text = response.choices[0].message.content.strip()
         
-        # Clean up any potential markdown formatting
+        
         if response_text.startswith("```json"):
             response_text = response_text[7:]
         if response_text.startswith("```"):
@@ -118,7 +119,7 @@ def enhance_with_ai(raw_text):
     except Exception as e:
         print("AI ERROR:", str(e))
         return {"error": "AI failed to process the resume properly."}
-
+    
 # 📄 Generate Clean, 1-Page ATS PDF
 def generate_pdf(data, filename="improved_resume.pdf"):
     # Shrink margins to force everything onto one page
