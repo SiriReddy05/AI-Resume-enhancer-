@@ -48,65 +48,66 @@ def extract_docx(file_path):
     return text
 
 # 🧠 AI Enhancement (Strict JSON Structured Output)
+# 🧠 AI Enhancement (Strict JSON Structured Output)
 def enhance_with_ai(raw_text):
     try:
-        prompt = f"""
-        You are an expert ATS-friendly resume writer. Extract and greatly enhance the following resume text.
+        # Move rules to a SYSTEM prompt so the AI prioritizes them above all else
+        system_prompt = """
+        You are an expert ATS-friendly resume writer and a meticulous data extractor.
         
         CRITICAL RULES:
-        1. DO NOT summarize, truncate, or delete any information.
-        2. You MUST keep EVERY single job, EVERY project, EVERY certification, and EVERY bullet point from the original text.
-        3. Your only job is to improve the language, fix grammar, and use strong action verbs. Do NOT shorten the resume.
+        1. YOU ARE FORBIDDEN FROM DELETING OR SUMMARIZING INFORMATION.
+        2. You MUST retain EVERY single job experience, EVERY project, EVERY certification, and EVERY bullet point.
+        3. Your only job is to improve the language, fix grammar, and use strong action verbs.
         
-        You MUST return ONLY a valid JSON object. Do not include any explanations or markdown formatting.
+        You MUST return ONLY a valid JSON object. Do not include any explanations, markdown formatting, or markdown code blocks (no ```json).
         Use this EXACT JSON structure:
-        {{
+        {
           "name": "Full Name",
           "contact": "Email | Phone | LinkedIn/Links",
           "summary": "A highly professional summary paragraph...",
           "skills": ["Skill 1", "Skill 2", "Skill 3"],
           "experience": [
-            {{
+            {
               "title": "Job Title or Role",
               "subtitle": "Company Name",
               "date": "Duration (e.g., Jan 2021 - Present)",
               "details": ["High-impact bullet point 1", "High-impact bullet point 2"]
-            }}
+            }
           ],
           "education": [
-            {{
+            {
               "title": "Degree Name",
               "subtitle": "Institution Name",
               "date": "Graduation Year",
               "details": ["Optional academic detail or empty string"]
-            }}
+            }
           ],
           "projects": [
-            {{
+            {
               "title": "Project Name",
               "subtitle": "Technologies Used",
               "date": "Year or Duration",
               "details": ["Action-oriented bullet 1", "Action-oriented bullet 2"]
-            }}
+            }
           ],
           "certifications": ["Certification Name 1", "Certification Name 2"]
-        }}
-
-        RAW RESUME TEXT:
-        {raw_text}
+        }
         """
 
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-            max_tokens=3000
-              # Lower temperature makes the AI more obedient to rules
+            model="llama-3.3-70b-versatile", # UPGRADED TO THE 70-BILLION PARAMETER MODEL
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"RAW RESUME TEXT:\n{raw_text}"}
+            ],
+            temperature=0.1, # Extremely low temperature so it doesn't get "creative" and skip things
+            max_tokens=6000  # Doubled the token limit to ensure it never cuts off
         )
 
         response_text = response.choices[0].message.content.strip()
-
-
+        
+        # Clean up any potential markdown formatting
         if response_text.startswith("```json"):
             response_text = response_text[7:]
         if response_text.startswith("```"):
