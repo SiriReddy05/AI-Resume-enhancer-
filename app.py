@@ -17,10 +17,8 @@ from docx.shared import RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 app = Flask(__name__)
-# FIX: Allow CORS for all domains so Vercel can access it!
+# Allow CORS for all domains so Vercel can access it!
 CORS(app, resources={r"/*": {"origins": "*"}})
-
-import os
 
 # Change your Groq client line to this:
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
@@ -48,7 +46,6 @@ def extract_docx(file_path):
     return text
 
 # 🧠 AI Enhancement (Strict JSON Structured Output)
-# 🧠 AI Enhancement (Strict JSON Structured Output)
 def enhance_with_ai(raw_text):
     try:
         # Move rules to a SYSTEM prompt so the AI prioritizes them above all else
@@ -57,8 +54,8 @@ def enhance_with_ai(raw_text):
         
         CRITICAL RULES:
         1. YOU ARE FORBIDDEN FROM DELETING OR SUMMARIZING INFORMATION.
-        2. You MUST retain EVERY single job experience, EVERY project, EVERY certification, and EVERY bullet point.
-        3. Your only job is to improve the language, fix grammar, and use strong action verbs.
+        2. You MUST retain EVERY single job experience, EVERY project, EVERY certification, EVERY achievement, and EVERY bullet point.
+        3. Do not shorten the resume. Improve grammar and use strong action verbs.
         
         You MUST return ONLY a valid JSON object. Do not include any explanations, markdown formatting, or markdown code blocks (no ```json).
         Use this EXACT JSON structure:
@@ -91,7 +88,8 @@ def enhance_with_ai(raw_text):
               "details": ["Action-oriented bullet 1", "Action-oriented bullet 2"]
             }
           ],
-          "certifications": ["Certification Name 1", "Certification Name 2"]
+          "certifications": ["Certification 1", "Certification 2"],
+          "achievements": ["Achievement/Leadership 1", "Achievement/Leadership 2"]
         }
         """
 
@@ -120,16 +118,14 @@ def enhance_with_ai(raw_text):
     except Exception as e:
         print("AI ERROR:", str(e))
         return {"error": "AI failed to process the resume properly."}
-    
-# 📄 Generate Clean PDF with Strict Formatting
-# 📄 Generate Clean, 1-Page ATS PDF with Strict Formatting
+
 # 📄 Generate Clean, 1-Page ATS PDF
 def generate_pdf(data, filename="improved_resume.pdf"):
-    # FIX: Shrink margins to 25pt to force everything onto one page
+    # Shrink margins to force everything onto one page
     doc = SimpleDocTemplate(filename, pagesize=letter, rightMargin=25, leftMargin=25, topMargin=20, bottomMargin=20)
     styles = getSampleStyleSheet()
     
-    # FIX: Tighter font sizes for maximum content density
+    # Tighter font sizes for maximum content density
     title_style = ParagraphStyle(name='TitleStyle', alignment=TA_CENTER, fontSize=15, leading=18, spaceAfter=2, fontName='Helvetica-Bold')
     contact_style = ParagraphStyle(name='ContactStyle', alignment=TA_CENTER, fontSize=9, spaceAfter=8)
     section_heading = ParagraphStyle(name='SectionHeading', fontSize=10, spaceBefore=6, spaceAfter=2, textTransform='uppercase', fontName='Helvetica-Bold')
@@ -158,7 +154,7 @@ def generate_pdf(data, filename="improved_resume.pdf"):
         add_line()
         elements.append(Paragraph(" • ".join(data['skills']), normal_text))
 
-    # 4. Experience & Projects (Combined logic for speed)
+    # 4. Experience & Projects
     for section_title, key in [("EXPERIENCE", "experience"), ("PROJECTS", "projects")]:
         items = data.get(key, [])
         if items:
@@ -185,10 +181,20 @@ def generate_pdf(data, filename="improved_resume.pdf"):
             elements.append(Paragraph(f"<b>{edu.get('title', '')}</b> | {edu.get('date', '')}", item_title))
             elements.append(Paragraph(edu.get('subtitle', ''), normal_text))
 
+    # 6. Certifications & Achievements
+    for section_title, key in [("CERTIFICATIONS", "certifications"), ("ACHIEVEMENTS & LEADERSHIP", "achievements")]:
+        items = data.get(key, [])
+        if items:
+            elements.append(Paragraph(f"<b>{section_title}</b>", section_heading))
+            add_line()
+            for item in items:
+                if str(item).strip():
+                    elements.append(Paragraph(f"• {item}", bullet_text))
+
     doc.build(elements)
     return filename
 
-# 📄 Generate Clean DOCX (NEW FUNCTION WITH SAFE FALLBACK)
+# 📄 Generate Clean DOCX
 def generate_docx(data, filename="improved_resume.docx"):
     doc = docx.Document()
     
@@ -212,7 +218,7 @@ def generate_docx(data, filename="improved_resume.docx"):
         add_section_header("Skills")
         doc.add_paragraph(" • ".join(data['skills']))
         
-    # Helper for repetitive sections (Experience, Education, Projects)
+    # Helper for repetitive sections
     def add_list_section(title, key):
         items = data.get(key, [])
         if items and len(items) > 0:
@@ -224,14 +230,12 @@ def generate_docx(data, filename="improved_resume.docx"):
                     p.add_run(f"  |  {item.get('date', '')}")
                 
                 if item.get('subtitle'):
-                    # FIX: SAFE FALLBACK manual italic
                     p_sub = doc.add_paragraph()
                     p_sub.add_run(item.get('subtitle', '')).italic = True
                     
                 if item.get('details') and isinstance(item['details'], list):
                     for detail in item['details']:
                         if str(detail).strip():
-                            # FIX: SAFE FALLBACK manual bullet
                             doc.add_paragraph(f"•  {str(detail)}")
                             
     # 4. Experience, Education, Projects
@@ -239,12 +243,14 @@ def generate_docx(data, filename="improved_resume.docx"):
     add_list_section("Education", "education")
     add_list_section("Projects", "projects")
     
-    # 5. Certifications
-    if data.get('certifications') and len(data['certifications']) > 0:
-        add_section_header("Certifications")
-        for cert in data['certifications']:
-            if str(cert).strip():
-                doc.add_paragraph(f"•  {str(cert)}")
+    # 5. Certifications & Achievements
+    for section_title, key in [("Certifications", "certifications"), ("Achievements & Leadership", "achievements")]:
+        items = data.get(key, [])
+        if items and len(items) > 0:
+            add_section_header(section_title)
+            for item in items:
+                if str(item).strip():
+                    doc.add_paragraph(f"•  {str(item)}")
                 
     doc.save(filename)
     return filename
