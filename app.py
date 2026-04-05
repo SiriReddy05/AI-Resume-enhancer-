@@ -12,10 +12,12 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib import colors
 
+# Add these new imports for DOCX generation
 from docx.shared import RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 app = Flask(__name__)
+# Allow CORS for all domains so Vercel can access it!
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
@@ -40,6 +42,7 @@ def extract_docx(file_path):
         text += para.text + "\n"
     return text
 
+# 🧠 AI Enhancement (Strict JSON Structured Output)
 def enhance_with_ai(raw_text):
     try:
         system_prompt = """
@@ -48,26 +51,35 @@ def enhance_with_ai(raw_text):
         CRITICAL RULES:
         1. YOU ARE FORBIDDEN FROM DELETING OR SUMMARIZING INFORMATION.
         2. You MUST retain EVERY single job experience, EVERY project, EVERY certification, EVERY achievement, and EVERY bullet point.
-        3. EXPLICIT EXTRACTION: You must actively search for sections titled "Scholastic Achievements", "Position of Responsibility", "Leadership", or similar. Extract EVERY SINGLE bullet point under these headings and place them directly into the "achievements" array. Do not leave them behind.
-        4. CATEGORIZED SKILLS: Group the candidate's skills into logical categories (e.g., Languages, Frameworks, Tools & Technologies, Soft Skills). Return them as an array of objects.
-        5. Do not shorten the resume. Improve grammar and use strong action verbs.
+        3. EXPLICIT EXTRACTION: Actively search for "Scholastic Achievements", "Position of Responsibility", or "Leadership". Extract ALL bullet points into the "achievements" array.
+        4. CATEGORIZED SKILLS: Group skills into categories (e.g., Languages, Frameworks).
+        5. EXTRACT TECHNOLOGIES: For every job experience and project, explicitly extract the technologies/skills used into the "technologies" field.
         
-        You MUST return ONLY a valid JSON object. Do not include any explanations, markdown formatting, or markdown code blocks (no ```json).
+        You MUST return ONLY a valid JSON object. Do not include markdown code blocks (no ```json).
         Use this EXACT JSON structure:
         {
           "name": "Full Name",
           "contact": "Email | Phone | LinkedIn/Links",
           "summary": "A highly professional summary paragraph...",
           "skills": [
-            {"category": "Languages", "items": "Python, JavaScript, SQL"},
-            {"category": "Frameworks", "items": "React, Django, Flask"}
+            {"category": "Languages", "items": "Python, JavaScript, SQL"}
           ],
           "experience": [
             {
               "title": "Job Title or Role",
-              "subtitle": "Company Name",
+              "company": "Company Name",
+              "technologies": "Python, OpenAI, Azure AI, Docker",
+              "location": "City, Country",
               "date": "Duration (e.g., Jan 2021 - Present)",
-              "details": ["High-impact bullet point 1", "High-impact bullet point 2"]
+              "details": ["High-impact bullet point 1"]
+            }
+          ],
+          "projects": [
+            {
+              "title": "Project Name",
+              "technologies": "ReactJS, Node.js, Python",
+              "date": "Year or Duration",
+              "details": ["Action-oriented bullet 1"]
             }
           ],
           "education": [
@@ -78,16 +90,8 @@ def enhance_with_ai(raw_text):
               "details": ["Optional academic detail or empty string"]
             }
           ],
-          "projects": [
-            {
-              "title": "Project Name",
-              "subtitle": "Technologies Used",
-              "date": "Year or Duration",
-              "details": ["Action-oriented bullet 1", "Action-oriented bullet 2"]
-            }
-          ],
-          "certifications": ["Certification 1", "Certification 2"],
-          "achievements": ["Achievement/Leadership 1", "Achievement/Leadership 2"]
+          "certifications": ["Certification 1"],
+          "achievements": ["Achievement/Leadership 1"]
         }
         """
 
@@ -103,11 +107,11 @@ def enhance_with_ai(raw_text):
 
         response_text = response.choices[0].message.content.strip()
         
-        if response_text.startswith("```json"):
+        if response_text.startswith("```json"): 
             response_text = response_text[7:]
-        if response_text.startswith("```"):
+        if response_text.startswith("```"): 
             response_text = response_text[3:]
-        if response_text.endswith("```"):
+        if response_text.endswith("```"): 
             response_text = response_text[:-3]
 
         return json.loads(response_text.strip())
@@ -140,7 +144,6 @@ def generate_pdf(data, filename="improved_resume.pdf"):
         add_line()
         elements.append(Paragraph(data['summary'], normal_text))
 
-    # UPDATED SKILLS DRAWING
     if data.get('skills'):
         elements.append(Paragraph("<b>SKILLS</b>", section_heading))
         add_line()
@@ -152,23 +155,37 @@ def generate_pdf(data, filename="improved_resume.pdf"):
             elif items:
                 elements.append(Paragraph(f"• {items}", normal_text))
 
-    for section_title, key in [("EXPERIENCE", "experience"), ("PROJECTS", "projects")]:
-        items = data.get(key, [])
-        if items:
-            elements.append(Paragraph(f"<b>{section_title}</b>", section_heading))
-            add_line()
-            for item in items:
-                header = f"<b>{item.get('title', '')}</b>"
-                if item.get('date'):
-                    header += f" <font color='grey'>| {item.get('date', '')}</font>"
-                elements.append(Paragraph(header, item_title))
-                
-                if item.get('subtitle'):
-                    elements.append(Paragraph(f"<i>{item['subtitle']}</i>", normal_text))
-                
-                for detail in item.get('details', []):
-                    if detail.strip():
-                        elements.append(Paragraph(f"• {detail}", bullet_text))
+    # --- UPDATED EXPERIENCE LAYOUT ---
+    if data.get('experience'):
+        elements.append(Paragraph("<b>EXPERIENCE</b>", section_heading))
+        add_line()
+        for item in data['experience']:
+            header = f"<b>{item.get('title', '')}</b>"
+            if item.get('date'): header += f" <font color='grey'>| {item.get('date', '')}</font>"
+            elements.append(Paragraph(header, item_title))
+            
+            sub_parts = []
+            if item.get('company'): sub_parts.append(f"<b>{item['company']}</b>")
+            if item.get('technologies'): sub_parts.append(item['technologies'])
+            sub_str = " | ".join(sub_parts)
+            if item.get('location'): sub_str += f" <font color='grey'>| {item['location']}</font>"
+            
+            if sub_str: elements.append(Paragraph(f"<i>{sub_str}</i>", normal_text))
+            for detail in item.get('details', []):
+                if detail.strip(): elements.append(Paragraph(f"• {detail}", bullet_text))
+
+    # --- UPDATED PROJECTS LAYOUT ---
+    if data.get('projects'):
+        elements.append(Paragraph("<b>PROJECTS</b>", section_heading))
+        add_line()
+        for item in data['projects']:
+            header = f"<b>{item.get('title', '')}</b>"
+            if item.get('technologies'): header += f" | <i><font color='dimgrey'>{item['technologies']}</font></i>"
+            if item.get('date'): header += f" <font color='grey'>| {item.get('date', '')}</font>"
+            elements.append(Paragraph(header, item_title))
+            
+            for detail in item.get('details', []):
+                if detail.strip(): elements.append(Paragraph(f"• {detail}", bullet_text))
 
     if data.get('education'):
         elements.append(Paragraph("<b>EDUCATION</b>", section_heading))
@@ -183,8 +200,7 @@ def generate_pdf(data, filename="improved_resume.pdf"):
             elements.append(Paragraph(f"<b>{section_title}</b>", section_heading))
             add_line()
             for item in items:
-                if str(item).strip():
-                    elements.append(Paragraph(f"• {item}", bullet_text))
+                if str(item).strip(): elements.append(Paragraph(f"• {item}", bullet_text))
 
     doc.build(elements)
     return filename
@@ -197,56 +213,77 @@ def generate_docx(data, filename="improved_resume.docx"):
     contact_p = doc.add_paragraph(data.get('contact', 'Email | Phone'))
     contact_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
-    def add_section_header(title):
-        doc.add_heading(title, level=2)
+    def add_section_header(title): doc.add_heading(title, level=2)
         
     if data.get('summary'):
         add_section_header("Professional Summary")
         doc.add_paragraph(data['summary'])
         
-    # UPDATED SKILLS DRAWING
     if data.get('skills') and len(data['skills']) > 0:
         add_section_header("Skills")
         for skill_group in data['skills']:
             p = doc.add_paragraph()
             cat = skill_group.get('category', '')
             items = skill_group.get('items', '')
-            
             p.paragraph_format.left_indent = docx.shared.Inches(0.25)
-            if cat:
-                p.add_run(f"{cat}: ").bold = True
+            if cat: p.add_run(f"{cat}: ").bold = True
             p.add_run(items)
-        
-    def add_list_section(title, key):
-        items = data.get(key, [])
-        if items and len(items) > 0:
-            add_section_header(title)
-            for item in items:
-                p = doc.add_paragraph()
-                p.add_run(item.get('title', '')).bold = True
-                if item.get('date'):
-                    p.add_run(f"  |  {item.get('date', '')}")
+
+    # --- UPDATED EXPERIENCE DOCX ---
+    if data.get('experience'):
+        add_section_header("Experience")
+        for item in data['experience']:
+            p = doc.add_paragraph()
+            p.add_run(item.get('title', '')).bold = True
+            if item.get('date'): p.add_run(f"  |  {item.get('date', '')}")
+            
+            sub_parts = []
+            if item.get('company'): sub_parts.append(item['company'])
+            if item.get('technologies'): sub_parts.append(item['technologies'])
+            sub_str = " | ".join(sub_parts)
+            if item.get('location'): sub_str += f"  |  {item['location']}"
+            
+            if sub_str:
+                p_sub = doc.add_paragraph()
+                p_sub.add_run(sub_str).italic = True
                 
-                if item.get('subtitle'):
-                    p_sub = doc.add_paragraph()
-                    p_sub.add_run(item.get('subtitle', '')).italic = True
-                    
-                if item.get('details') and isinstance(item['details'], list):
-                    for detail in item['details']:
-                        if str(detail).strip():
-                            doc.add_paragraph(f"•  {str(detail)}")
-                            
-    add_list_section("Experience", "experience")
-    add_list_section("Education", "education")
-    add_list_section("Projects", "projects")
+            if item.get('details'):
+                for detail in item['details']:
+                    if str(detail).strip(): doc.add_paragraph(f"•  {str(detail)}")
+
+    # --- UPDATED PROJECTS DOCX ---
+    if data.get('projects'):
+        add_section_header("Projects")
+        for item in data['projects']:
+            p = doc.add_paragraph()
+            p.add_run(item.get('title', '')).bold = True
+            if item.get('technologies'): p.add_run(f" | {item['technologies']}").italic = True
+            if item.get('date'): p.add_run(f"  |  {item.get('date', '')}")
+            
+            if item.get('details'):
+                for detail in item['details']:
+                    if str(detail).strip(): doc.add_paragraph(f"•  {str(detail)}")
     
+    # Education
+    if data.get('education'):
+        add_section_header("Education")
+        for item in data['education']:
+            p = doc.add_paragraph()
+            p.add_run(item.get('title', '')).bold = True
+            if item.get('date'): p.add_run(f"  |  {item.get('date', '')}")
+            if item.get('subtitle'):
+                p_sub = doc.add_paragraph()
+                p_sub.add_run(item.get('subtitle', '')).italic = True
+            if item.get('details'):
+                for detail in item['details']:
+                    if str(detail).strip(): doc.add_paragraph(f"•  {str(detail)}")
+
     for section_title, key in [("Certifications", "certifications"), ("Achievements & Leadership", "achievements")]:
         items = data.get(key, [])
         if items and len(items) > 0:
             add_section_header(section_title)
             for item in items:
-                if str(item).strip():
-                    doc.add_paragraph(f"•  {str(item)}")
+                if str(item).strip(): doc.add_paragraph(f"•  {str(item)}")
                 
     doc.save(filename)
     return filename
@@ -262,12 +299,9 @@ def upload():
         file.save(file_path)
 
         text = ""
-        if file.filename.lower().endswith(".pdf"):
-            text = extract_pdf(file_path)
-        elif file.filename.lower().endswith(".docx"):
-            text = extract_docx(file_path)
-        else:
-            return jsonify({"error": "Unsupported format"}), 400
+        if file.filename.lower().endswith(".pdf"): text = extract_pdf(file_path)
+        elif file.filename.lower().endswith(".docx"): text = extract_docx(file_path)
+        else: return jsonify({"error": "Unsupported format"}), 400
 
         structured_data = enhance_with_ai(text)
         
@@ -277,8 +311,7 @@ def upload():
         pdf_file = generate_pdf(structured_data)
         docx_file = generate_docx(structured_data)
         
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        if os.path.exists(file_path): os.remove(file_path)
 
         return jsonify({
             "resumeData": structured_data,
