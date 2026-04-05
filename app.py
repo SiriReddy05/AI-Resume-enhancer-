@@ -52,7 +52,7 @@ def enhance_with_ai(raw_text):
         1. YOU ARE FORBIDDEN FROM DELETING OR SUMMARIZING INFORMATION.
         2. You MUST retain EVERY single job experience, EVERY project, EVERY certification, EVERY achievement, and EVERY bullet point.
         3. EXPLICIT EXTRACTION: Actively search for "Scholastic Achievements", "Position of Responsibility", or "Leadership". Extract ALL bullet points into the "achievements" array.
-        4. CATEGORIZED SKILLS: Group skills into categories (e.g., Languages, Frameworks).
+        4. CATEGORIZED SKILLS: You MUST categorize the skills into exactly these four categories: "Languages", "Frameworks", "Tools & Technologies", and "Soft Skills".
         5. EXTRACT TECHNOLOGIES: For every job experience and project, explicitly extract the technologies/skills used into the "technologies" field.
         
         You MUST return ONLY a valid JSON object. Do not include markdown code blocks (no ```json).
@@ -62,7 +62,10 @@ def enhance_with_ai(raw_text):
           "contact": "Email | Phone | LinkedIn/Links",
           "summary": "A highly professional summary paragraph...",
           "skills": [
-            {"category": "Languages", "items": "Python, JavaScript, SQL"}
+            {"category": "Languages", "items": "Python, Java, C"},
+            {"category": "Frameworks", "items": "React, Flask"},
+            {"category": "Tools & Technologies", "items": "Git, Docker, VS Code"},
+            {"category": "Soft Skills", "items": "Leadership, Communication"}
           ],
           "experience": [
             {
