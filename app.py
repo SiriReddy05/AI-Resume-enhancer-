@@ -12,22 +12,18 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib import colors
 
-# Add these new imports for DOCX generation
 from docx.shared import RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 app = Flask(__name__)
-# Allow CORS for all domains so Vercel can access it!
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Change your Groq client line to this:
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 @app.route('/')
 def home():
     return "Backend is running!"
 
-# 📄 Extract PDF
 def extract_pdf(file_path):
     text = ""
     with open(file_path, "rb") as file:
@@ -37,7 +33,6 @@ def extract_pdf(file_path):
                 text += page.extract_text() + "\n"
     return text
 
-# 📄 Extract DOCX
 def extract_docx(file_path):
     doc = docx.Document(file_path)
     text = ""
@@ -45,8 +40,6 @@ def extract_docx(file_path):
         text += para.text + "\n"
     return text
 
-# 🧠 AI Enhancement (Strict JSON Structured Output)
-# 🧠 AI Enhancement (Strict JSON Structured Output)
 def enhance_with_ai(raw_text):
     try:
         system_prompt = """
@@ -56,7 +49,8 @@ def enhance_with_ai(raw_text):
         1. YOU ARE FORBIDDEN FROM DELETING OR SUMMARIZING INFORMATION.
         2. You MUST retain EVERY single job experience, EVERY project, EVERY certification, EVERY achievement, and EVERY bullet point.
         3. EXPLICIT EXTRACTION: You must actively search for sections titled "Scholastic Achievements", "Position of Responsibility", "Leadership", or similar. Extract EVERY SINGLE bullet point under these headings and place them directly into the "achievements" array. Do not leave them behind.
-        4. Do not shorten the resume. Improve grammar and use strong action verbs.
+        4. CATEGORIZED SKILLS: Group the candidate's skills into logical categories (e.g., Languages, Frameworks, Tools & Technologies, Soft Skills). Return them as an array of objects.
+        5. Do not shorten the resume. Improve grammar and use strong action verbs.
         
         You MUST return ONLY a valid JSON object. Do not include any explanations, markdown formatting, or markdown code blocks (no ```json).
         Use this EXACT JSON structure:
@@ -64,7 +58,10 @@ def enhance_with_ai(raw_text):
           "name": "Full Name",
           "contact": "Email | Phone | LinkedIn/Links",
           "summary": "A highly professional summary paragraph...",
-          "skills": ["Skill 1", "Skill 2", "Skill 3"],
+          "skills": [
+            {"category": "Languages", "items": "Python, JavaScript, SQL"},
+            {"category": "Frameworks", "items": "React, Django, Flask"}
+          ],
           "experience": [
             {
               "title": "Job Title or Role",
@@ -106,7 +103,6 @@ def enhance_with_ai(raw_text):
 
         response_text = response.choices[0].message.content.strip()
         
-        
         if response_text.startswith("```json"):
             response_text = response_text[7:]
         if response_text.startswith("```"):
@@ -120,13 +116,10 @@ def enhance_with_ai(raw_text):
         print("AI ERROR:", str(e))
         return {"error": "AI failed to process the resume properly."}
     
-# 📄 Generate Clean, 1-Page ATS PDF
 def generate_pdf(data, filename="improved_resume.pdf"):
-    # Shrink margins to force everything onto one page
     doc = SimpleDocTemplate(filename, pagesize=letter, rightMargin=25, leftMargin=25, topMargin=20, bottomMargin=20)
     styles = getSampleStyleSheet()
     
-    # Tighter font sizes for maximum content density
     title_style = ParagraphStyle(name='TitleStyle', alignment=TA_CENTER, fontSize=15, leading=18, spaceAfter=2, fontName='Helvetica-Bold')
     contact_style = ParagraphStyle(name='ContactStyle', alignment=TA_CENTER, fontSize=9, spaceAfter=8)
     section_heading = ParagraphStyle(name='SectionHeading', fontSize=10, spaceBefore=6, spaceAfter=2, textTransform='uppercase', fontName='Helvetica-Bold')
@@ -136,26 +129,29 @@ def generate_pdf(data, filename="improved_resume.pdf"):
 
     elements = []
 
-    # 1. Header (Name & Contact)
     elements.append(Paragraph(data.get('name', '').upper(), title_style))
     elements.append(Paragraph(data.get('contact', ''), contact_style))
     
     def add_line():
         elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.black, spaceBefore=0, spaceAfter=2))
 
-    # 2. Professional Summary
     if data.get('summary'):
         elements.append(Paragraph("<b>PROFESSIONAL SUMMARY</b>", section_heading))
         add_line()
         elements.append(Paragraph(data['summary'], normal_text))
 
-    # 3. Skills
+    # UPDATED SKILLS DRAWING
     if data.get('skills'):
-        elements.append(Paragraph("<b>TECHNICAL SKILLS</b>", section_heading))
+        elements.append(Paragraph("<b>SKILLS</b>", section_heading))
         add_line()
-        elements.append(Paragraph(" • ".join(data['skills']), normal_text))
+        for skill_group in data['skills']:
+            cat = skill_group.get('category', '')
+            items = skill_group.get('items', '')
+            if cat and items:
+                elements.append(Paragraph(f"<b>{cat}:</b> {items}", normal_text))
+            elif items:
+                elements.append(Paragraph(f"• {items}", normal_text))
 
-    # 4. Experience & Projects
     for section_title, key in [("EXPERIENCE", "experience"), ("PROJECTS", "projects")]:
         items = data.get(key, [])
         if items:
@@ -174,7 +170,6 @@ def generate_pdf(data, filename="improved_resume.pdf"):
                     if detail.strip():
                         elements.append(Paragraph(f"• {detail}", bullet_text))
 
-    # 5. Education
     if data.get('education'):
         elements.append(Paragraph("<b>EDUCATION</b>", section_heading))
         add_line()
@@ -182,7 +177,6 @@ def generate_pdf(data, filename="improved_resume.pdf"):
             elements.append(Paragraph(f"<b>{edu.get('title', '')}</b> | {edu.get('date', '')}", item_title))
             elements.append(Paragraph(edu.get('subtitle', ''), normal_text))
 
-    # 6. Certifications & Achievements
     for section_title, key in [("CERTIFICATIONS", "certifications"), ("ACHIEVEMENTS & LEADERSHIP", "achievements")]:
         items = data.get(key, [])
         if items:
@@ -195,31 +189,34 @@ def generate_pdf(data, filename="improved_resume.pdf"):
     doc.build(elements)
     return filename
 
-# 📄 Generate Clean DOCX
 def generate_docx(data, filename="improved_resume.docx"):
     doc = docx.Document()
     
-    # 1. Header
     name_p = doc.add_heading(data.get('name', 'Your Name'), level=1)
     name_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
     contact_p = doc.add_paragraph(data.get('contact', 'Email | Phone'))
     contact_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
     def add_section_header(title):
         doc.add_heading(title, level=2)
         
-    # 2. Professional Summary
     if data.get('summary'):
         add_section_header("Professional Summary")
         doc.add_paragraph(data['summary'])
         
-    # 3. Skills
+    # UPDATED SKILLS DRAWING
     if data.get('skills') and len(data['skills']) > 0:
         add_section_header("Skills")
-        doc.add_paragraph(" • ".join(data['skills']))
+        for skill_group in data['skills']:
+            p = doc.add_paragraph()
+            cat = skill_group.get('category', '')
+            items = skill_group.get('items', '')
+            
+            p.paragraph_format.left_indent = docx.shared.Inches(0.25)
+            if cat:
+                p.add_run(f"{cat}: ").bold = True
+            p.add_run(items)
         
-    # Helper for repetitive sections
     def add_list_section(title, key):
         items = data.get(key, [])
         if items and len(items) > 0:
@@ -239,12 +236,10 @@ def generate_docx(data, filename="improved_resume.docx"):
                         if str(detail).strip():
                             doc.add_paragraph(f"•  {str(detail)}")
                             
-    # 4. Experience, Education, Projects
     add_list_section("Experience", "experience")
     add_list_section("Education", "education")
     add_list_section("Projects", "projects")
     
-    # 5. Certifications & Achievements
     for section_title, key in [("Certifications", "certifications"), ("Achievements & Leadership", "achievements")]:
         items = data.get(key, [])
         if items and len(items) > 0:
@@ -256,7 +251,6 @@ def generate_docx(data, filename="improved_resume.docx"):
     doc.save(filename)
     return filename
 
-# 📤 Upload & Process API
 @app.route('/upload', methods=['POST'])
 def upload():
     try:
@@ -267,7 +261,6 @@ def upload():
         file_path = "temp_" + file.filename
         file.save(file_path)
 
-        # Extract Text
         text = ""
         if file.filename.lower().endswith(".pdf"):
             text = extract_pdf(file_path)
@@ -276,17 +269,14 @@ def upload():
         else:
             return jsonify({"error": "Unsupported format"}), 400
 
-        # AI Enhance & Structure into JSON
         structured_data = enhance_with_ai(text)
         
         if "error" in structured_data:
              return jsonify(structured_data), 500
 
-        # Generate BOTH formatted PDF and DOCX
         pdf_file = generate_pdf(structured_data)
         docx_file = generate_docx(structured_data)
         
-        # Cleanup temp file
         if os.path.exists(file_path):
             os.remove(file_path)
 
@@ -299,7 +289,6 @@ def upload():
         print("ERROR:", str(e))
         return jsonify({"error": str(e)}), 500
 
-# 📥 Download API
 @app.route('/download/<filename>')
 def download_file(filename):
     if not os.path.exists(filename):
