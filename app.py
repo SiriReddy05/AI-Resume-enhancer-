@@ -43,6 +43,7 @@ def extract_docx(file_path):
     return text
 
 # 🧠 AI Enhancement (Strict JSON Structured Output)
+# 🧠 AI Enhancement (Strict JSON Structured Output)
 def enhance_with_ai(raw_text):
     try:
         system_prompt = """
@@ -52,7 +53,7 @@ def enhance_with_ai(raw_text):
         1. YOU ARE FORBIDDEN FROM DELETING OR SUMMARIZING INFORMATION.
         2. You MUST retain EVERY single job experience, EVERY project, EVERY certification, EVERY achievement, and EVERY bullet point.
         3. EXPLICIT EXTRACTION: Actively search for "Scholastic Achievements", "Position of Responsibility", or "Leadership". Extract ALL bullet points into the "achievements" array.
-        4. CATEGORIZED SKILLS: You MUST categorize the skills into exactly these four categories: "Languages", "Frameworks", "Tools & Technologies", and "Soft Skills".
+        4. CATEGORIZED SKILLS: You MUST categorize the skills into exactly these four categories: "Languages", "Frameworks", "Tools & Technologies", and "Soft Skills". (Note: Put programming languages in 'Languages'. You can add spoken languages to 'Soft Skills' or details).
         5. EXTRACT TECHNOLOGIES: For every job experience and project, explicitly extract the technologies/skills used into the "technologies" field.
         
         You MUST return ONLY a valid JSON object. Do not include markdown code blocks (no ```json).
@@ -110,18 +111,20 @@ def enhance_with_ai(raw_text):
 
         response_text = response.choices[0].message.content.strip()
         
-        if response_text.startswith("```json"): 
-            response_text = response_text[7:]
-        if response_text.startswith("```"): 
-            response_text = response_text[3:]
-        if response_text.endswith("```"): 
-            response_text = response_text[:-3]
-
-        return json.loads(response_text.strip())
+        # --- BULLETPROOF JSON EXTRACTOR ---
+        # This regex looks for everything between the first { and the last }
+        match = re.search(r'\{.*\}', response_text, re.DOTALL)
+        
+        if match:
+            json_str = match.group(0)
+            return json.loads(json_str)
+        else:
+            print("ERROR: AI did not return JSON. Raw output:", response_text)
+            return {"error": "AI failed to format data correctly as JSON."}
 
     except Exception as e:
         print("AI ERROR:", str(e))
-        return {"error": "AI failed to process the resume properly."}
+        return {"error": f"AI failed to process the resume: {str(e)}"}
     
 def generate_pdf(data, filename="improved_resume.pdf"):
     doc = SimpleDocTemplate(filename, pagesize=letter, rightMargin=25, leftMargin=25, topMargin=20, bottomMargin=20)
